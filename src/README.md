@@ -7,6 +7,16 @@ A super simple FastAPI application that allows students to view and sign up for 
 - View all available extracurricular activities
 - Sign up for activities
 
+### Quick Admin Mode
+
+For a simple admin workflow, you can add teacher credentials to `teachers.json` at the repository root. Teachers can then manage activities using the admin endpoints:
+
+- `GET /admin/activities` — list activities (admin view)
+- `POST /admin/activities?name=...&description=...&schedule=...&max_participants=...` — create activity
+- `DELETE /admin/activities/{activity_name}` — delete activity
+
+These endpoints use HTTP Basic auth. This is a stop-gap measure — for production, migrate to a proper auth system and secure secrets in environment variables.
+
 ## Getting Started
 
 1. Install the dependencies:
