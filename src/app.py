@@ -5,7 +5,8 @@ A super simple FastAPI application that allows students to view and sign up
 for extracurricular activities at Mergington High School.
 """
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends, status
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import RedirectResponse
 import os
@@ -82,10 +83,57 @@ activities = {
 def root():
     return RedirectResponse(url="/static/index.html")
 
+# --- Quick Admin Mode (HTTP Basic) ---
+security = HTTPBasic()
+
+def load_teachers():
+    import json
+    from pathlib import Path
+    p = Path(__file__).parent.parent / "teachers.json"
+    try:
+        return json.loads(p.read_text())
+    except Exception:
+        return {"teachers": []}
+
+def get_current_teacher(creds: HTTPBasicCredentials = Depends(security)):
+    import secrets
+    teachers = load_teachers().get("teachers", [])
+    for t in teachers:
+        if secrets.compare_digest(t.get("username"), creds.username) and secrets.compare_digest(t.get("password"), creds.password):
+            return t
+    raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+
 
 @app.get("/activities")
 def get_activities():
     return activities
+
+
+@app.get("/admin/activities")
+def admin_list_activities(teacher: dict = Depends(get_current_teacher)):
+    """Admin-only: list activities with full participant lists"""
+    return activities
+
+
+@app.post("/admin/activities")
+def admin_add_activity(name: str, description: str, schedule: str, max_participants: int, teacher: dict = Depends(get_current_teacher)):
+    if name in activities:
+        raise HTTPException(status_code=400, detail="Activity already exists")
+    activities[name] = {
+        "description": description,
+        "schedule": schedule,
+        "max_participants": max_participants,
+        "participants": []
+    }
+    return {"message": f"Activity '{name}' created"}
+
+
+@app.delete("/admin/activities/{activity_name}")
+def admin_delete_activity(activity_name: str, teacher: dict = Depends(get_current_teacher)):
+    if activity_name not in activities:
+        raise HTTPException(status_code=404, detail="Activity not found")
+    del activities[activity_name]
+    return {"message": f"Activity '{activity_name}' deleted"}
 
 
 @app.post("/activities/{activity_name}/signup")
